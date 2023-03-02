@@ -1,60 +1,91 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 
 function App() {
-  const [todos, setTodos] = useState([
-    {
-      id: 1,
-      content: "Wake up early",
-      completed: false,
-      createdAt: new Date(),
-    },
-    {
-      id: 2,
-      content: "Go To Radial Code ",
-      completed: true,
-      createdAt: new Date(),
-    },
-    {
-      id: 3,
-      content: "Complete your assignments",
-      completed: false,
-      createdAt: new Date(),
-    },
-  ]);
+  const [todos, setTodos] = useState([]);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editObj, setEditObj] = useState({
+    _id: "",
+    content: "",
+    completed: false,
+  });
+
+  useEffect(() => {
+    var requestOptions = {
+      method: "GET",
+      redirect: "follow",
+    };
+
+    fetch("http://localhost:4000/api/v1/todos", requestOptions)
+      .then((response) => response.json())
+      .then((result) => setTodos(result.data))
+      .catch((error) => console.log("error", error));
+  }, []);
 
   const [newTodo, setNewTodo] = useState("");
 
-  const updateTodoHandler = (isChecked, id) => {
+  const updateTodoHandler = async () => {
     // Find the index of object them complete object
-    const itemIndex = todos.findIndex((item) => item.id === id);
-    const newTodoItem = [...todos][itemIndex];
-    newTodoItem.completed = isChecked;
-    console.log({ newTodoItem });
-    // Update the todos state
+    const itemIndex = todos.findIndex((item) => item._id === editObj._id);
+
     const newTodos = [...todos];
-    // Find the object to update
-    newTodos[itemIndex] = newTodoItem;
-    // Finally setstate
-    setTodos(newTodos);
+
+    var raw = {
+      content: editObj.content,
+      completed: editObj.completed,
+    };
+
+    var requestOptions = {
+      method: "PUT",
+      body: JSON.stringify(raw),
+      redirect: "follow",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    };
+
+    fetch(`http://localhost:4000/api/v1/todos/${editObj._id}`, requestOptions)
+      .then((response) => response.text())
+      .then((result) => {
+        newTodos[itemIndex] = JSON.parse(result).data;
+        // Finally setstate
+        setTodos(newTodos);
+        setIsEditMode(false);
+        setEditObj({ _id: "", content: "", completed: false });
+      })
+      .catch((error) => console.log("error", error));
   };
 
-  const formSubmitHandler = (e) => {
+  const formSubmitHandler = async (e) => {
     e.preventDefault();
 
     // Create New Todo Object
     const newTodoItem = {
-      id: Math.floor(Math.random() * 1000),
       content: newTodo,
       completed: false,
-      createdAt: new Date(),
     };
 
-    // Set State
-    setTodos((pre) => [...pre, newTodoItem]);
+    var requestOptions = {
+      method: "POST",
+      body: JSON.stringify(newTodoItem),
+      redirect: "follow",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    };
 
-    // Set the form to Empty
-    setNewTodo("");
+    fetch("http://localhost:4000/api/v1/todos", requestOptions)
+      .then((response) => response.text())
+      .then((result) => {
+        const JSONData = JSON.parse(result);
+        // Set State
+        setTodos((pre) => [...pre, JSONData.data]);
+        // Set the form to Empty
+        setNewTodo("");
+      })
+      .catch((error) => console.log("error", error));
   };
 
   return (
@@ -62,7 +93,7 @@ function App() {
       className="App"
       style={{ backgroundColor: "black", height: "100vh", color: "white" }}
     >
-      <h2 style={{ margin: "0px" }}>Todo App</h2>
+      <h2>Todo App</h2>
 
       {/* Create a new to-do */}
       <form onSubmit={formSubmitHandler} style={{ marginTop: "50px" }}>
@@ -78,19 +109,72 @@ function App() {
       <ol>
         {todos.map((item, index) => (
           <li key={index}>
-            <input
-              type="checkbox"
-              checked={item.completed}
-              onChange={(e) => updateTodoHandler(e.target.checked, item.id)}
-            />
-            <span
-              contentEditable={true}
-              style={{
-                textDecoration: item.completed ? "line-through" : "unset",
-              }}
-            >
-              {item.content}
-            </span>
+            {/* Defualt State */}
+
+            {editObj._id !== item._id ? (
+              <>
+                <input
+                  type="checkbox"
+                  checked={item.completed}
+                  disabled={true}
+                />
+                <span
+                  style={{
+                    textDecoration: item.completed ? "line-through" : "unset",
+                  }}
+                >
+                  {item.content}
+                </span>
+                <button
+                  style={{ marginLeft: "15px" }}
+                  onClick={() => {
+                    setIsEditMode(true);
+                    setEditObj({
+                      _id: item._id,
+                      completed: item.completed,
+                      content: item.content,
+                    });
+                  }}
+                >
+                  Edit
+                </button>
+              </>
+            ) : (
+              ""
+            )}
+            {/* End Default State */}
+
+            {/* Edit State */}
+            {isEditMode && item._id === editObj._id ? (
+              <>
+                <input
+                  type="checkbox"
+                  checked={editObj.completed}
+                  onChange={(e) =>
+                    setEditObj((pre) => ({
+                      ...pre,
+                      completed: e.target.checked,
+                    }))
+                  }
+                />
+                <input
+                  type="text"
+                  value={editObj.content}
+                  onChange={(e) =>
+                    setEditObj((pre) => ({ ...pre, content: e.target.value }))
+                  }
+                />
+                <button
+                  style={{ marginLeft: "15px" }}
+                  onClick={() => updateTodoHandler()}
+                >
+                  Update
+                </button>
+              </>
+            ) : (
+              ""
+            )}
+            {/* End Edit State */}
           </li>
         ))}
       </ol>
